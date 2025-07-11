@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: posture-backend
+    env: docker
+    plan: free
+    autoDeploy: true
