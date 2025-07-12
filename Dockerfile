@@ -19,8 +19,8 @@ COPY backend/ .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Expose port (default Flask port is 5000 or Gunicorn 8000)
-EXPOSE 8000
+# Expose port (just for docs; Render sets its own)
+EXPOSE 5000
 
-# Run the app using Gunicorn
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8000"]
+# Run the app using Gunicorn, binding to Render's PORT
+CMD exec gunicorn app:app --bind 0.0.0.0:$PORT
