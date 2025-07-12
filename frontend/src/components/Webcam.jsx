@@ -1,37 +1,60 @@
-import React, { useEffect, useState } from 'react';
-import { Video, AlertTriangle, CheckCircle, BarChart3 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const Webcam = () => {
-  const [status, setStatus] = useState('');
+  const videoRef = useRef(null);
+  const [status, setStatus] = useState('Waiting...');
   const [alerts, setAlerts] = useState([]);
-  const [mode, setMode] = useState('sitting');
   const [summary, setSummary] = useState(null);
+  const [mode, setMode] = useState('sitting');
 
+  // Start webcam
   useEffect(() => {
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then((stream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      })
+      .catch((err) => {
+        console.error("Webcam access error:", err);
+      });
+
     const interval = setInterval(() => {
-      fetch('https://posture-detection-n5w9.onrender.com/posture_status')
-        .then(res => res.json())
-        .then(data => {
-          setStatus(data.status);
-          setAlerts(data.alerts || []);
-        })
-        .catch(err => console.error("Failed to fetch posture status:", err));
+      captureAndSendFrame();
     }, 1000);
 
     return () => {
       clearInterval(interval);
-      fetch('https://posture-detection-n5w9.onrender.com/stop_stream').catch(err => console.error("Failed to stop stream:", err));
+      fetch('https://posture-detection-n5w9.onrender.com/stop_stream');
     };
   }, []);
 
-  const handleModeChange = (newMode) => {
-    fetch(`https://posture-detection-n5w9.onrender.com/set_mode/${newMode}`)
-      .then(res => res.json())
-      .then(data => {
-        setMode(newMode);
-        console.log("Mode switched:", data.message);
-      })
-      .catch(err => console.error("Failed to set mode:", err));
+  // Capture frame and send to backend
+  const captureAndSendFrame = async () => {
+    const canvas = document.createElement('canvas');
+    const video = videoRef.current;
+    if (!video) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+
+    const formData = new FormData();
+    formData.append('frame', blob, 'frame.jpg');
+
+    fetch('https://posture-detection-n5w9.onrender.com/process_frame', {
+      method: 'POST',
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      setStatus(data.status);
+      setAlerts(data.alerts || []);
+    })
+    .catch(err => console.error("Processing error:", err));
   };
 
   const fetchSummary = () => {
@@ -43,79 +66,46 @@ const Webcam = () => {
       .catch(err => console.error("Failed to fetch summary:", err));
   };
 
-  const statusColor = alerts.length > 0 ? 'border-red-500 ' : 'border-green-500';
+  const changeMode = (newMode) => {
+    fetch(`https://posture-detection-n5w9.onrender.com/set_mode/${newMode}`)
+      .then(res => res.json())
+      .then(() => setMode(newMode))
+      .catch(err => console.error("Mode switch failed:", err));
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-black text-white p-6">
-      <h1 className="text-4xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-teal-400 to-blue-500">
-        <Video className="inline-block mr-2" size={32} />
-        Live Posture Detection
-      </h1>
+    <div className="min-h-screen bg-black text-white flex flex-col items-center p-6">
+      <h1 className="text-4xl font-bold text-cyan-400 mb-4">Live Posture Detection</h1>
 
-      {/* Video feed */}
-      <div className={`rounded-xl overflow-hidden border-4 shadow-xl transition-all duration-500 ${statusColor}`}>
-        <img
-          src="https://posture-detection-n5w9.onrender.com/video_feed"
-          alt="Live Feed"
-          className="w-[640px] h-[480px] object-cover"
-        />
+      <div className={`rounded-xl overflow-hidden border-4 ${alerts.length ? 'border-red-500' : 'border-green-500'}`}>
+        <video ref={videoRef} autoPlay playsInline className="w-[640px] h-[480px] object-cover" />
       </div>
 
-      {/* Controls */}
-      <div className="flex flex-wrap justify-center gap-4 mt-8">
-        <button
-          onClick={() => handleModeChange('sitting')}
-          className={`px-6 py-3 rounded-xl font-semibold transition-all ${
-            mode === 'sitting' ? 'bg-blue-600 shadow-lg' : 'bg-gray-700 hover:bg-gray-600'
-          }`}
-        >
-          Sitting Mode
-        </button>
-        <button
-          onClick={() => handleModeChange('squat')}
-          className={`px-6 py-3 rounded-xl font-semibold transition-all ${
-            mode === 'squat' ? 'bg-blue-600 shadow-lg' : 'bg-gray-700 hover:bg-gray-600'
-          }`}
-        >
-          Squat Mode
-        </button>
-        <button
-          onClick={fetchSummary}
-          className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 font-semibold shadow-lg flex items-center gap-2"
-        >
-          <BarChart3 size={20} /> Get Summary
-        </button>
+      <div className="flex gap-4 mt-6">
+        <button onClick={() => changeMode('sitting')} className={`px-4 py-2 rounded ${mode === 'sitting' ? 'bg-blue-600' : 'bg-gray-700'}`}>Sitting Mode</button>
+        <button onClick={() => changeMode('squat')} className={`px-4 py-2 rounded ${mode === 'squat' ? 'bg-blue-600' : 'bg-gray-700'}`}>Squat Mode</button>
+        <button onClick={fetchSummary} className="px-4 py-2 bg-purple-600 rounded">Get Summary</button>
       </div>
 
-      {/* Status and alerts */}
-      <div className="mt-8 p-6 rounded-xl bg-white/10 backdrop-blur-lg shadow-xl w-full max-w-xl">
-        <h2 className="text-2xl font-semibold mb-3 flex items-center gap-2">
-          {alerts.length > 0 ? <AlertTriangle className="text-red-400" /> : <CheckCircle className="text-green-400" />}
-          {status}
-        </h2>
+      <div className="mt-6 text-center">
+        <h2 className="text-xl font-semibold mb-2">Status: {status}</h2>
         {alerts.length > 0 ? (
-          <ul className="list-disc list-inside text-red-300">
-            {alerts.map((alert, i) => (
-              <li key={i}>{alert}</li>
-            ))}
+          <ul className="text-red-400">
+            {alerts.map((alert, idx) => <li key={idx}>{alert}</li>)}
           </ul>
         ) : (
-          <p className="text-green-400">No posture issues detected.</p>
+          <p className="text-green-400">Good posture detected.</p>
         )}
       </div>
 
-      {/* Summary Display */}
       {summary && (
-        <div className="mt-6 p-6 rounded-xl bg-white/10 backdrop-blur-lg shadow-xl w-full max-w-xl">
-          <h3 className="text-xl font-bold text-white mb-3">📊 Posture Summary</h3>
-          <p className="mb-1">Total Frames: <span className="font-medium text-blue-300">{summary.total_frames}</span></p>
-          <p className="mb-3">Bad Posture Frames: <span className="font-medium text-red-400">{summary.bad_posture_frames}</span></p>
-          <p className="font-semibold text-red-300 mb-2">Alert Breakdown:</p>
-          <ul className="list-disc list-inside text-red-200">
-            {Object.entries(summary.alert_breakdown).map(([alert, count]) => (
-              <li key={alert}>
-                {alert}: {count}
-              </li>
+        <div className="mt-6 bg-white/10 p-4 rounded-xl max-w-xl w-full">
+          <h3 className="text-lg font-bold">Posture Summary</h3>
+          <p>Total Frames: {summary.total_frames}</p>
+          <p>Bad Posture Frames: {summary.bad_posture_frames}</p>
+          <ul>
+            {Object.entries(summary.alert_breakdown).map(([k, v]) => (
+              <li key={k}>{k}: {v}</li>
             ))}
           </ul>
         </div>
