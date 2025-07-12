@@ -3,6 +3,3 @@ services:
     name: posture-backend
     env: docker
     plan: free
-    envVars:
-      - key: PORT
-        value: 5000  # Render sets this automatically, but can override if needed
