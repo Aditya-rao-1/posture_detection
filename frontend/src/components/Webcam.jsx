@@ -9,7 +9,7 @@ const Webcam = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      fetch('http://localhost:5000/posture_status')
+      fetch('https://posture-detection-n5w9.onrender.com/posture_status')
         .then(res => res.json())
         .then(data => {
           setStatus(data.status);
@@ -20,12 +20,12 @@ const Webcam = () => {
 
     return () => {
       clearInterval(interval);
-      fetch('http://localhost:5000/stop_stream').catch(err => console.error("Failed to stop stream:", err));
+      fetch('https://posture-detection-n5w9.onrender.com/stop_stream').catch(err => console.error("Failed to stop stream:", err));
     };
   }, []);
 
   const handleModeChange = (newMode) => {
-    fetch(`http://localhost:5000/set_mode/${newMode}`)
+    fetch(`https://posture-detection-n5w9.onrender.com/set_mode/${newMode}`)
       .then(res => res.json())
       .then(data => {
         setMode(newMode);
@@ -35,7 +35,7 @@ const Webcam = () => {
   };
 
   const fetchSummary = () => {
-    fetch('http://localhost:5000/posture_summary')
+    fetch('https://posture-detection-n5w9.onrender.com/posture_summary')
       .then(res => res.json())
       .then(data => {
         setSummary(data);
@@ -55,7 +55,7 @@ const Webcam = () => {
       {/* Video feed */}
       <div className={`rounded-xl overflow-hidden border-4 shadow-xl transition-all duration-500 ${statusColor}`}>
         <img
-          src="http://localhost:5000/video_feed"
+          src="https://posture-detection-n5w9.onrender.com/video_feed"
           alt="Live Feed"
           className="w-[640px] h-[480px] object-cover"
         />
