@@ -39,7 +39,7 @@ const Uploadvideo = () => {
     formData.append('video', videoFile);
 
     try {
-      const res = await fetch('http://localhost:5000/upload_video', {
+      const res = await fetch('https://posture-detection-n5w9.onrender.com/upload_video', {
         method: 'POST',
         body: formData
       });
