@@ -37,7 +37,8 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Start the server
-CMD ["flask", "run", "--port=$PORT"]
+CMD flask run --port=$PORT
+
 
 
 
