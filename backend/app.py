@@ -79,7 +79,6 @@ def process_frame():
         neck_angle = np.degrees(np.arccos(np.clip(cosn, -1.0, 1.0)))
         knee_over_toe = abs(l_knee[0] - l_ankle[0]) > 20 and l_knee[1] > l_ankle[1]
 
-        # Calibration
         if not is_calibrated:
             if calibration_frames < 30:
                 calibration_shoulder_angles.append(shoulder_angle)
@@ -92,13 +91,12 @@ def process_frame():
                 is_calibrated = True
                 print(f"✅ Calibration complete. Shoulder < {shoulder_threshold:.1f}, Neck < {neck_threshold:.1f}")
 
-        # Posture checks
         if posture_mode == "sitting":
             if neck_angle > 30:
                 alerts.append("Neck bent forward (>30°)")
             if back_angle < 150:
                 alerts.append("Back not straight (<150°)")
-        else:  # squat
+        else:
             if back_angle < 150:
                 alerts.append("Back not straight (<150°)")
             if knee_over_toe:
@@ -110,8 +108,16 @@ def process_frame():
             for a in alerts:
                 alert_counter[a] = alert_counter.get(a, 0) + 1
 
-        status = "Poor Posture" if alerts else "Good Posture"
-        return jsonify({"status": status, "alerts": alerts})
+        # Draw pose landmarks and status
+        mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+
+        status_text = "Poor Posture" if alerts else "Good Posture"
+        color = (0, 0, 255) if alerts else (0, 255, 0)
+        cv2.putText(frame, status_text, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, color, 3)
+
+        # Convert back to bytes for client if needed
+        _, img_encoded = cv2.imencode('.jpg', frame)
+        return jsonify({"status": status_text, "alerts": alerts})
     else:
         return jsonify({"status": "No person detected", "alerts": []})
 
@@ -131,7 +137,7 @@ def posture_summary():
         "alert_breakdown": alert_counter
     })
 
-# Video upload logic preserved
+# Video upload logic preserved and enhanced
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -183,9 +189,9 @@ def upload_video():
             l_ear = coords(mp_pose.PoseLandmark.LEFT_EAR)
 
             back_angle = calculate_angle(l_shoulder, l_hip, l_knee)
-            neck_vec = np.array([l_ear[0]-l_shoulder[0], l_ear[1]-l_shoulder[1]])
+            neck_vec = np.array([l_ear[0] - l_shoulder[0], l_ear[1] - l_shoulder[1]])
             vert_vec = np.array([0, -1])
-            cosn = np.dot(neck_vec, vert_vec) / (np.linalg.norm(neck_vec)*np.linalg.norm(vert_vec)+1e-6)
+            cosn = np.dot(neck_vec, vert_vec) / (np.linalg.norm(neck_vec) * np.linalg.norm(vert_vec) + 1e-6)
             neck_angle = np.degrees(np.arccos(np.clip(cosn, -1.0, 1.0)))
             knee_over_toe = abs(l_knee[0] - l_ankle[0]) > 20 and l_knee[1] > l_ankle[1]
 
@@ -200,6 +206,12 @@ def upload_video():
             summary["bad_posture_frames"] += 1
             for a in alerts:
                 summary["alert_breakdown"][a] = summary["alert_breakdown"].get(a, 0) + 1
+
+        status_text = "Poor Posture" if alerts else "Good Posture"
+        color = (0, 0, 255) if alerts else (0, 255, 0)
+
+        mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+        cv2.putText(frame, status_text, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, color, 3)
 
         frame_feedback.append({"frame": frame_index, "alerts": alerts})
         frame_index += 1
